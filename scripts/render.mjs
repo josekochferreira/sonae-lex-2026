@@ -104,36 +104,6 @@ function minToLabel(min) {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-function slotStartForSort(row) {
-  const slot = parseSlot(row.slot);
-  return slot ? slot.start : Number.MAX_SAFE_INTEGER;
-}
-
-function tripRoute(rows) {
-  const ordered = rows
-    .filter((r) => r.city && r.date)
-    .sort((a, b) =>
-      a.date === b.date
-        ? slotStartForSort(a) - slotStartForSort(b)
-        : a.date < b.date
-        ? -1
-        : 1
-    );
-  const seq = [];
-  for (const r of ordered) {
-    if (seq[seq.length - 1] !== r.city) seq.push(r.city);
-  }
-  // Collapse immediate repeats caused by back-and-forth day trips.
-  const dedup = seq.filter((c, i) => c !== seq[i - 1]);
-  if (!dedup.length) return "";
-  return `<div class="route">${dedup
-    .map(
-      (c) =>
-        `<span class="route-city" style="--c:${cityHue(c)}">${escapeHtml(c)}</span>`
-    )
-    .join('<span class="route-arrow">&rarr;</span>')}</div>`;
-}
-
 function renderLegend() {
   const cats = Object.entries(CATEGORY)
     .map(
@@ -218,14 +188,12 @@ function renderBlock(row, slot) {
   const tall = height > 46;
 
   return `
-        <a class="block ${solid ? "confirmed" : "tbc"}" href="${escapeHtml(
-    row.url
-  )}" target="_blank" rel="noopener"
+        <div class="block ${solid ? "confirmed" : "tbc"}"
            style="top:${top}px;height:${height}px;--c:${cat.hue}">
           <span class="b-time">${timeLabel}</span>
           <span class="b-title">${cityDot}${escapeHtml(row.event)}</span>
           ${tall ? contacts : ""}
-        </a>`;
+        </div>`;
 }
 
 function renderDayColumn(date, events) {
@@ -248,11 +216,9 @@ function renderDayColumn(date, events) {
         <div class="unscheduled-chips">${unscheduled
           .map((row) => {
             const cat = CATEGORY[categorize(row.event)];
-            return `<a class="chip" href="${escapeHtml(
-              row.url
-            )}" target="_blank" rel="noopener" style="--c:${cat.hue}">${escapeHtml(
+            return `<span class="chip" style="--c:${cat.hue}">${escapeHtml(
               row.event
-            )}</a>`;
+            )}</span>`;
           })
           .join("")}</div>
       </div>`
@@ -307,7 +273,6 @@ export function renderBody(rows, { generatedAt, databaseUrl } = {}) {
     .join("\n");
 
   const rangeLabel = formatRange(dates);
-  const routeHtml = tripRoute(rows);
 
   return `
 <style>
@@ -327,7 +292,7 @@ export function renderBody(rows, { generatedAt, databaseUrl } = {}) {
     font-family: var(--font-body);
     color: var(--text);
     background: var(--bg);
-    padding: 34px 26px 64px;
+    padding: 22px 26px 56px;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
@@ -354,35 +319,32 @@ export function renderBody(rows, { generatedAt, databaseUrl } = {}) {
   }
 
   /* ---------- masthead ---------- */
-  .masthead { max-width: 1180px; margin: 0 auto 22px; }
+  .masthead {
+    max-width: 1180px; margin: 0 auto 16px;
+    display: grid; grid-template-columns: auto 1fr; align-items: center;
+    column-gap: 16px; row-gap: 1px;
+  }
   .brandmark {
-    display: inline-block; background: #ffffff; border-radius: 10px;
-    padding: 7px 14px 8px; margin-bottom: 16px;
+    grid-row: 1 / span 3; align-self: center;
+    display: inline-block; background: #ffffff; border-radius: 9px;
+    padding: 6px 12px 7px;
     box-shadow: 0 1px 2px rgba(15,20,30,0.08), 0 6px 18px -12px rgba(15,20,30,0.35);
     font-family: ui-rounded, "SF Pro Rounded", "Segoe UI", var(--font-body);
-    font-size: 1.32rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1;
+    font-size: 1.18rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1;
     user-select: none;
   }
   .brandmark .bm-a { color: #0a1a9b; }
   .brandmark .bm-b { color: #2f80e4; }
   .mh-eyebrow {
-    font-size: 0.68rem; font-weight: 600; letter-spacing: 0.16em;
-    color: var(--accent); margin-bottom: 8px; font-variant-numeric: tabular-nums;
+    font-size: 0.64rem; font-weight: 600; letter-spacing: 0.15em;
+    color: var(--accent); font-variant-numeric: tabular-nums;
   }
   .agenda-root h1 {
     font-family: var(--font-display); font-weight: 600;
-    font-size: clamp(1.5rem, 1.1rem + 1.6vw, 2.15rem);
-    line-height: 1.08; letter-spacing: -0.01em; margin: 0; text-wrap: balance;
+    font-size: clamp(1.35rem, 1.05rem + 1.2vw, 1.8rem);
+    line-height: 1.1; letter-spacing: -0.01em; margin: 0; text-wrap: balance;
   }
-  .route {
-    display: flex; flex-wrap: wrap; align-items: center; gap: 3px 4px;
-    margin-top: 12px; font-size: 0.82rem; font-weight: 600;
-  }
-  .route-city { color: color-mix(in srgb, var(--c) 74%, var(--text)); }
-  .route-arrow { color: var(--faint); font-weight: 400; padding: 0 3px; }
-  .subtitle { color: var(--muted); font-size: 0.82rem; margin: 14px 0 0; line-height: 1.5; }
-  .subtitle a { color: var(--accent); text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
-  .subtitle a:hover { border-bottom-color: var(--accent); }
+  .subtitle { color: var(--muted); font-size: 0.78rem; margin: 0; line-height: 1.4; }
 
   /* ---------- legend ---------- */
   .legend {
@@ -522,10 +484,7 @@ export function renderBody(rows, { generatedAt, databaseUrl } = {}) {
     <div class="brandmark" role="img" aria-label="Sonae"><span class="bm-a">S</span><span class="bm-b">o</span><span class="bm-a">n</span><span class="bm-b">a</span><span class="bm-a">e</span></div>
     <div class="mh-eyebrow">${escapeHtml(rangeLabel)}</div>
     <h1>Sonae LEX2026 &mdash; China Trip Agenda</h1>
-    ${routeHtml}
-    <p class="subtitle">Live view of the LEX2026-agenda-db Notion database &middot; last built ${escapeHtml(
-    generatedAt || ""
-  )}.</p>
+    <p class="subtitle">Last updated ${escapeHtml(generatedAt || "")}.</p>
   </header>
   ${renderLegend()}
   <div class="cal">
