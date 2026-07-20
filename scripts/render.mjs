@@ -213,12 +213,6 @@ function renderBlock(row, slot, lane = { index: 0, count: 1 }) {
     ? `${minToLabel(slot.start)} &rarr;`
     : `${minToLabel(slot.start)}&ndash;${minToLabel(slot.end)}`;
 
-  const cityDot = row.city
-    ? `<span class="b-city-dot" style="--cd:${cityHue(row.city)}" title="${escapeHtml(
-        row.city
-      )}"></span>`
-    : "";
-
   const contacts = row.contacts.length
     ? `<div class="b-contacts">${row.contacts.map((c) => escapeHtml(c)).join(", ")}</div>`
     : "";
@@ -229,7 +223,7 @@ function renderBlock(row, slot, lane = { index: 0, count: 1 }) {
         <div class="block ${solid ? "confirmed" : "tbc"}"
            style="top:${top}px;height:${height}px;left:calc(${laneLeft}% + 3px);width:calc(${laneW}% - 6px);--c:${cat.hue}">
           <span class="b-time">${timeLabel}</span>
-          <span class="b-title">${cityDot}${escapeHtml(row.event)}</span>
+          <span class="b-title">${escapeHtml(row.event)}</span>
           ${tall ? contacts : ""}
         </div>`;
 }
@@ -498,10 +492,6 @@ export function renderBody(rows, { generatedAt, databaseUrl } = {}) {
   .b-title {
     display: block; font-size: 0.72rem; font-weight: 600; line-height: 1.22;
     margin-top: 1px; overflow: hidden;
-  }
-  .b-city-dot {
-    display: inline-block; width: 6px; height: 6px; border-radius: 50%;
-    background: var(--cd); margin-right: 4px; vertical-align: middle;
   }
   .b-contacts {
     font-size: 0.6rem; font-weight: 500; margin-top: 3px; line-height: 1.2;
