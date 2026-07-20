@@ -1,0 +1,13 @@
+{
+  "name": "sonae-lex-2026-agenda",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Dynamic agenda site for the Sonae LEX2026 trip, generated from a Notion database.",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build-agenda.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
