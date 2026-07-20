@@ -46,6 +46,16 @@ sync with Notion on the same 3-hour cadence as GitHub Pages:
 Once that secret exists, the scheduled workflow run also pings the hook,
 triggering a fresh Vercel deployment alongside the GitHub Pages rebuild.
 
+## Refresh button (live, on Vercel)
+
+The header's refresh button calls `GET /api/agenda` (`api/agenda.js`), a Vercel
+serverless function that queries Notion live and returns the rendered agenda as
+JSON. The client swaps it into the page instantly — no rebuild. It reuses the
+same `NOTION_TOKEN` env var the build uses, so no extra setup is required.
+
+On a static host without the function (e.g. GitHub Pages), the button falls
+back to a plain page reload.
+
 ## Local development
 
 ```bash

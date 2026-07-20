@@ -294,18 +294,34 @@ function renderTimeAxis() {
   return `<div class="time-axis" style="height:${TIMELINE_HEIGHT}px">${out}</div>`;
 }
 
-export function renderBody(rows, { generatedAt, databaseUrl } = {}) {
+// The refreshable part of the page (legend + calendar). Returned on its own by
+// the live API route so the client can swap it in without a full reload.
+export function renderContent(rows) {
   const rowsByDate = {};
   for (const row of rows) {
     if (!row.date) continue;
     (rowsByDate[row.date] ||= []).push(row);
   }
   const dates = Object.keys(rowsByDate).sort();
-
   const columnsHtml = dates
     .map((d) => renderDayColumn(d, rowsByDate[d]))
     .join("\n");
 
+  return `${renderLegend()}
+  <div class="cal">
+    <div class="cal-scroll">
+      <div class="cal-grid">
+        ${renderTimeAxis()}
+        <div class="days-area">
+          ${columnsHtml}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+export function renderBody(rows, { generatedAt, databaseUrl } = {}) {
+  const dates = [...new Set(rows.filter((r) => r.date).map((r) => r.date))].sort();
   const rangeLabel = formatRange(dates);
 
   return `
@@ -542,35 +558,31 @@ export function renderBody(rows, { generatedAt, databaseUrl } = {}) {
     (function () {
       var btn = document.getElementById("refresh-btn");
       var sub = document.getElementById("mh-subtitle");
+      var content = document.getElementById("agenda-content");
       if (!btn) return;
       btn.addEventListener("click", function () {
         if (btn.classList.contains("spinning")) return;
         btn.classList.add("spinning");
-        var original = sub ? sub.textContent : "";
-        fetch("/api/refresh", { method: "POST" })
+        fetch("/api/agenda", { headers: { accept: "application/json" }, cache: "no-store" })
           .then(function (r) {
-            if (!r.ok) throw new Error("refresh unavailable");
-            if (sub) sub.textContent = "Rebuilding from Notion — this page will refresh in about a minute…";
-            setTimeout(function () { location.reload(); }, 75000);
+            if (!r.ok) throw new Error("live refresh unavailable");
+            return r.json();
+          })
+          .then(function (data) {
+            if (content && data.content) content.innerHTML = data.content;
+            if (sub && data.generatedAt) sub.textContent = "Last updated " + data.generatedAt + ".";
+            btn.classList.remove("spinning");
           })
           .catch(function () {
-            // No rebuild endpoint here (e.g. static preview): just reload.
+            // No live endpoint here (e.g. static preview / GitHub Pages): reload.
             location.reload();
           });
       });
     })();
   </script>
-  ${renderLegend()}
-  <div class="cal">
-    <div class="cal-scroll">
-      <div class="cal-grid">
-        ${renderTimeAxis()}
-        <div class="days-area">
-          ${columnsHtml}
-        </div>
-      </div>
-    </div>
+  <div id="agenda-content">
+  ${renderContent(rows)}
   </div>
-  <div class="agenda-footer">Generated automatically from Notion &middot; rebuilds on a schedule via GitHub Actions.</div>
+  <div class="agenda-footer">Generated automatically from Notion &middot; auto-refreshes on a schedule; use the button to pull the latest now.</div>
 </div>`;
 }
