@@ -165,12 +165,50 @@ function renderDayHeader(date, events) {
     </div>`;
 }
 
-function renderBlock(row, slot) {
+// Split a day's timed events into side-by-side lanes wherever they overlap,
+// so concurrent items render next to each other instead of stacking.
+function assignLanes(items) {
+  const out = items.map((it) => ({ ...it, lane: { index: 0, count: 1 } }));
+  let i = 0;
+  while (i < out.length) {
+    let clusterEnd = out[i].slot.end;
+    let j = i + 1;
+    const cluster = [out[i]];
+    while (j < out.length && out[j].slot.start < clusterEnd) {
+      clusterEnd = Math.max(clusterEnd, out[j].slot.end);
+      cluster.push(out[j]);
+      j++;
+    }
+    const laneEnds = [];
+    for (const it of cluster) {
+      let placed = false;
+      for (let l = 0; l < laneEnds.length; l++) {
+        if (laneEnds[l] <= it.slot.start) {
+          it.lane.index = l;
+          laneEnds[l] = it.slot.end;
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        it.lane.index = laneEnds.length;
+        laneEnds.push(it.slot.end);
+      }
+    }
+    for (const it of cluster) it.lane.count = laneEnds.length;
+    i = j;
+  }
+  return out;
+}
+
+function renderBlock(row, slot, lane = { index: 0, count: 1 }) {
   const cat = CATEGORY[categorize(row.event)];
   const top = Math.max(0, Math.round((slot.start - SH * 60) * PX_PER_MIN));
   const rawHeight = (slot.end - slot.start) * PX_PER_MIN;
   const height = Math.max(Math.round(rawHeight), 30);
   const solid = row.status === "Confirmed";
+  const laneW = 100 / lane.count;
+  const laneLeft = lane.index * laneW;
   const timeLabel = slot.openEnded
     ? `${minToLabel(slot.start)} &rarr;`
     : `${minToLabel(slot.start)}&ndash;${minToLabel(slot.end)}`;
@@ -189,7 +227,7 @@ function renderBlock(row, slot) {
 
   return `
         <div class="block ${solid ? "confirmed" : "tbc"}"
-           style="top:${top}px;height:${height}px;--c:${cat.hue}">
+           style="top:${top}px;height:${height}px;left:calc(${laneLeft}% + 3px);width:calc(${laneW}% - 6px);--c:${cat.hue}">
           <span class="b-time">${timeLabel}</span>
           <span class="b-title">${cityDot}${escapeHtml(row.event)}</span>
           ${tall ? contacts : ""}
@@ -204,10 +242,12 @@ function renderDayColumn(date, events) {
     if (slot) scheduled.push({ row, slot });
     else unscheduled.push(row);
   }
-  scheduled.sort((a, b) => a.slot.start - b.slot.start);
+  scheduled.sort((a, b) =>
+    a.slot.start - b.slot.start || a.slot.end - b.slot.end
+  );
 
-  const blocksHtml = scheduled
-    .map(({ row, slot }) => renderBlock(row, slot))
+  const blocksHtml = assignLanes(scheduled)
+    .map(({ row, slot, lane }) => renderBlock(row, slot, lane))
     .join("\n");
 
   const unscheduledHtml = unscheduled.length
@@ -320,10 +360,27 @@ export function renderBody(rows, { generatedAt, databaseUrl } = {}) {
 
   /* ---------- masthead ---------- */
   .masthead {
+    position: relative;
     max-width: 1180px; margin: 0 auto 16px;
-    display: grid; grid-template-columns: auto 1fr; align-items: center;
+    display: grid; grid-template-columns: auto 1fr auto; align-items: center;
     column-gap: 16px; row-gap: 1px;
   }
+  .refresh-btn {
+    grid-column: 3; grid-row: 1 / span 3; align-self: center; justify-self: end;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 38px; height: 38px; border-radius: 50%;
+    border: 1px solid var(--border); background: var(--card-bg); color: var(--muted);
+    cursor: pointer; padding: 0;
+    box-shadow: 0 1px 2px rgba(15,20,30,0.05);
+    transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  }
+  .refresh-btn:hover { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+  .refresh-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .refresh-btn svg { width: 17px; height: 17px; }
+  .refresh-btn.spinning svg { animation: rf-spin 0.8s linear infinite; }
+  .refresh-btn.spinning { color: var(--accent); cursor: default; }
+  @keyframes rf-spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .refresh-btn.spinning svg { animation: none; } }
   .brandmark {
     grid-row: 1 / span 3; align-self: center;
     display: inline-block; background: #ffffff; border-radius: 9px;
@@ -416,7 +473,7 @@ export function renderBody(rows, { generatedAt, databaseUrl } = {}) {
 
   /* ---------- event blocks ---------- */
   .block {
-    position: absolute; left: 4px; right: 4px; overflow: hidden;
+    position: absolute; overflow: hidden;
     padding: 4px 8px 4px 9px; border-radius: 7px; text-decoration: none;
     background: color-mix(in srgb, var(--c) 13%, var(--card-bg));
     border-left: 3px solid var(--c);
@@ -484,8 +541,35 @@ export function renderBody(rows, { generatedAt, databaseUrl } = {}) {
     <div class="brandmark" role="img" aria-label="Sonae"><span class="bm-a">S</span><span class="bm-b">o</span><span class="bm-a">n</span><span class="bm-b">a</span><span class="bm-a">e</span></div>
     <div class="mh-eyebrow">${escapeHtml(rangeLabel)}</div>
     <h1>Sonae LEX2026 &mdash; China Trip Agenda</h1>
-    <p class="subtitle">Last updated ${escapeHtml(generatedAt || "")}.</p>
+    <p class="subtitle" id="mh-subtitle">Last updated ${escapeHtml(generatedAt || "")}.</p>
+    <button class="refresh-btn" id="refresh-btn" type="button" title="Refresh from Notion" aria-label="Refresh agenda from Notion">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>
+      </svg>
+    </button>
   </header>
+  <script>
+    (function () {
+      var btn = document.getElementById("refresh-btn");
+      var sub = document.getElementById("mh-subtitle");
+      if (!btn) return;
+      btn.addEventListener("click", function () {
+        if (btn.classList.contains("spinning")) return;
+        btn.classList.add("spinning");
+        var original = sub ? sub.textContent : "";
+        fetch("/api/refresh", { method: "POST" })
+          .then(function (r) {
+            if (!r.ok) throw new Error("refresh unavailable");
+            if (sub) sub.textContent = "Rebuilding from Notion — this page will refresh in about a minute…";
+            setTimeout(function () { location.reload(); }, 75000);
+          })
+          .catch(function () {
+            // No rebuild endpoint here (e.g. static preview): just reload.
+            location.reload();
+          });
+      });
+    })();
+  </script>
   ${renderLegend()}
   <div class="cal">
     <div class="cal-scroll">
