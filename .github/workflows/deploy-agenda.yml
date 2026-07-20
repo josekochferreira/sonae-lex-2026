@@ -41,3 +41,10 @@ jobs:
     steps:
       - uses: actions/deploy-pages@v4
         id: deployment
+
+  trigger-vercel:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Vercel deploy hook
+        if: ${{ secrets.VERCEL_DEPLOY_HOOK_URL != '' }}
+        run: curl -fsS -X POST "${{ secrets.VERCEL_DEPLOY_HOOK_URL }}"
