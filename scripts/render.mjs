@@ -11,10 +11,12 @@ const CITY_COLORS = {
 
 const CATEGORY = {
   visit: { label: "Site visit", bg: "#1d8f6b", fg: "#ffffff" },
-  meal: { label: "Meal", bg: "#a9631a", fg: "#ffffff" },
-  transfer: { label: "Transfer", bg: "#5f6672", fg: "#ffffff" },
-  hotel: { label: "Hotel / check-in", bg: "#94764f", fg: "#ffffff" },
-  other: { label: "Other / TBD", bg: "#4a4f78", fg: "#ffffff" },
+  session: { label: "Briefing / session", bg: "#2f6f9e", fg: "#ffffff" },
+  meal: { label: "Meal", bg: "#b5651d", fg: "#ffffff" },
+  transfer: { label: "Transfer", bg: "#64707c", fg: "#ffffff" },
+  hotel: { label: "Hotel / check-in", bg: "#8a6d43", fg: "#ffffff" },
+  leisure: { label: "Leisure / free time", bg: "#7c6a9c", fg: "#ffffff" },
+  other: { label: "Other / TBD", bg: "#6e6e6e", fg: "#ffffff" },
 };
 
 const SH = 6; // timeline start hour
@@ -28,7 +30,9 @@ function categorize(title) {
   if (/arrival|move|transfer|train|maglev|airport|flight/.test(t))
     return "transfer";
   if (/hotel|check-in/.test(t)) return "hotel";
-  if (/lunch|dinner|meal/.test(t)) return "meal";
+  if (/breakfast|lunch|dinner|\bmeal\b/.test(t)) return "meal";
+  if (/leisure|free time|free evening/.test(t)) return "leisure";
+  if (/session|welcome|briefing/.test(t)) return "session";
   return "visit";
 }
 
