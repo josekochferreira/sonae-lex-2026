@@ -557,8 +557,6 @@ export function renderBody(rows, { generatedAt, databaseUrl } = {}) {
   <script>
     (function () {
       var btn = document.getElementById("refresh-btn");
-      var sub = document.getElementById("mh-subtitle");
-      var content = document.getElementById("agenda-content");
       if (!btn) return;
       btn.addEventListener("click", function () {
         if (btn.classList.contains("spinning")) return;
@@ -569,12 +567,17 @@ export function renderBody(rows, { generatedAt, databaseUrl } = {}) {
             return r.json();
           })
           .then(function (data) {
+            // Look these up at click time — the script tag is parsed before
+            // #agenda-content exists, so resolving them earlier returns null.
+            var content = document.getElementById("agenda-content");
+            var sub = document.getElementById("mh-subtitle");
             if (content && data.content) content.innerHTML = data.content;
             if (sub && data.generatedAt) sub.textContent = "Last updated " + data.generatedAt + ".";
             btn.classList.remove("spinning");
           })
           .catch(function () {
             // No live endpoint here (e.g. static preview / GitHub Pages): reload.
+            btn.classList.remove("spinning");
             location.reload();
           });
       });

@@ -16,8 +16,8 @@ export default async function handler(req, res) {
 
   try {
     const rows = await fetchAgendaRows();
-    // Let the browser cache briefly; the button always bypasses with no-store.
-    res.setHeader("Cache-Control", "s-maxage=30, stale-while-revalidate=120");
+    // Never cache — the button exists to fetch the very latest from Notion.
+    res.setHeader("Cache-Control", "no-store, max-age=0");
     return res.status(200).json({
       content: renderContent(rows),
       generatedAt: formatGeneratedAt(),
