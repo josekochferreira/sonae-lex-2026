@@ -42,11 +42,8 @@ jobs:
       - uses: actions/deploy-pages@v4
         id: deployment
 
-  trigger-vercel:
-    runs-on: ubuntu-latest
-    env:
-      DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
-    steps:
-      - name: Ping Vercel deploy hook
-        if: ${{ env.DEPLOY_HOOK_URL != '' }}
-        run: curl -fsS -X POST "$DEPLOY_HOOK_URL"
+  # Note: Vercel keeps itself fresh via its own Git integration (it redeploys
+  # on every push to the production branch), and the header's refresh button
+  # pulls live Notion data through /api/agenda. So there is intentionally no
+  # scheduled Vercel deploy-hook ping here — it only produced redundant
+  # (and, on non-production branches, failing) builds.

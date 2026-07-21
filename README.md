@@ -34,17 +34,17 @@ schedule so it stays in sync with Notion without any manual steps.
 ## Also deployed to Vercel
 
 The project is also connected to Vercel (`sonae-lex-2026.vercel.app`), which
-runs the same `npm run build` and needs its own `NOTION_TOKEN` environment
-variable set in the Vercel project settings (Settings → Environment
-Variables). Vercel only rebuilds on a git push by default, so to keep it in
-sync with Notion on the same 3-hour cadence as GitHub Pages:
+runs the same `npm run build`. Vercel needs `NOTION_TOKEN` set in its own
+project settings (Settings → Environment Variables). **Set it for every
+environment (Production, Preview, Development)** — if it is scoped to
+Production only, builds on any non-production branch fail with
+"Missing NOTION_TOKEN".
 
-1. Vercel dashboard → project → Settings → Git → Deploy Hooks → create a hook
-   for the branch you want kept fresh.
-2. Add its URL as the `VERCEL_DEPLOY_HOOK_URL` repo secret.
-
-Once that secret exists, the scheduled workflow run also pings the hook,
-triggering a fresh Vercel deployment alongside the GitHub Pages rebuild.
+Vercel redeploys on every push to the production branch via its Git
+integration, and the refresh button pulls live data through `/api/agenda`, so
+no scheduled deploy hook is needed. For everything to line up, set the Vercel
+**Production Branch** (Settings → Git) and the GitHub **default branch** to the
+same branch you deploy from.
 
 ## Refresh button (live, on Vercel)
 
