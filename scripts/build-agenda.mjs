@@ -9,8 +9,9 @@ function wrapDocument(bodyHtml) {
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Sonae LEX2026 - China Trip Agenda</title>
+<style>html,body{margin:0;background:#0b1014}</style>
 </head>
-<body style="margin:0">
+<body>
 ${bodyHtml}
 </body>
 </html>

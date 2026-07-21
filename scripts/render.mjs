@@ -5,21 +5,23 @@
 // Each category / city is a single hue. Backgrounds, ink and rails are derived
 // from it at render time via CSS color-mix(), so the same hue reads correctly
 // in both light and dark themes without per-theme color tables.
+// Palette adopted from the China trip website template: bright blue primary
+// with vivid orange / purple / green / pink / red categoricals on a dark ground.
 const CITY_HUE = {
-  Shanghai: "#d19626",
-  Hangzhou: "#3f86c9",
-  Shenzen: "#d1514a",
-  "Hong Kong": "#b1557f",
+  Shanghai: "#e0741f",
+  Hangzhou: "#2ea1df",
+  Shenzen: "#cf0a2c",
+  "Hong Kong": "#a78bfa",
 };
 
 const CATEGORY = {
-  visit: { label: "Site visit", hue: "#0e8f6b" },
-  session: { label: "Briefing", hue: "#3a6ea5" },
-  meal: { label: "Meal", hue: "#c07a2c" },
-  transfer: { label: "Transfer", hue: "#647686" },
-  hotel: { label: "Hotel", hue: "#9c7b46" },
-  leisure: { label: "Leisure", hue: "#7b6aa6" },
-  other: { label: "Other / TBD", hue: "#6f7480" },
+  visit: { label: "Site visit", hue: "#2ea1df" },
+  session: { label: "Briefing", hue: "#a78bfa" },
+  meal: { label: "Meal", hue: "#fb923c" },
+  transfer: { label: "Transfer", hue: "#5a6675" },
+  hotel: { label: "Hotel", hue: "#4ade80" },
+  leisure: { label: "Leisure", hue: "#ec4899" },
+  other: { label: "Other / TBD", hue: "#8b949e" },
 };
 
 const SH = 6; // timeline start hour
@@ -41,7 +43,7 @@ function categorize(title) {
 }
 
 function cityHue(name) {
-  return CITY_HUE[name] || "#6f7480";
+  return CITY_HUE[name] || "#8b949e";
 }
 
 function parseSlot(slot) {
@@ -230,11 +232,11 @@ function renderBlock(row, slot, lane = { index: 0, count: 1 }) {
 
 function renderDayColumn(date, events) {
   const scheduled = [];
-  const unscheduled = [];
+  const unscheduledRows = [];
   for (const row of events) {
     const slot = parseSlot(row.slot);
     if (slot) scheduled.push({ row, slot });
-    else unscheduled.push(row);
+    else unscheduledRows.push(row);
   }
   scheduled.sort((a, b) =>
     a.slot.start - b.slot.start || a.slot.end - b.slot.end
@@ -244,21 +246,9 @@ function renderDayColumn(date, events) {
     .map(({ row, slot, lane }) => renderBlock(row, slot, lane))
     .join("\n");
 
-  const unscheduledHtml = unscheduled.length
-    ? `<div class="unscheduled">
-        <div class="unscheduled-label">Unscheduled</div>
-        <div class="unscheduled-chips">${unscheduled
-          .map((row) => {
-            const cat = CATEGORY[categorize(row.event)];
-            return `<span class="chip" style="--c:${cat.hue}">${escapeHtml(
-              row.event
-            )}</span>`;
-          })
-          .join("")}</div>
-      </div>`
-    : "";
-
-  const orderedForHeader = [...scheduled.map((s) => s.row), ...unscheduled];
+  // Header city sequence still considers unscheduled rows so a city that only
+  // appears on a slotless item is not lost from the day's route.
+  const orderedForHeader = [...scheduled.map((s) => s.row), ...unscheduledRows];
 
   return `
     <div class="day-col">
@@ -267,7 +257,26 @@ function renderDayColumn(date, events) {
         ${hourLines()}
         ${blocksHtml}
       </div>
-      ${unscheduledHtml}
+    </div>`;
+}
+
+// Consolidated "Unscheduled" band shown at the top of the agenda. Collects
+// every dated-but-slotless event, each chip tagged with its day for context.
+function renderUnscheduledBand(items) {
+  if (!items.length) return "";
+  const chips = items
+    .map(({ row, date }) => {
+      const cat = CATEGORY[categorize(row.event)];
+      const { date: dateLabel } = formatDayHeading(date);
+      return `<span class="chip" style="--c:${cat.hue}"><span class="chip-day">${escapeHtml(
+        dateLabel
+      )}</span>${escapeHtml(row.event)}</span>`;
+    })
+    .join("");
+  return `
+    <div class="unscheduled-top">
+      <span class="unscheduled-top-label">Unscheduled</span>
+      <div class="unscheduled-chips">${chips}</div>
     </div>`;
 }
 
@@ -303,11 +312,20 @@ export function renderContent(rows) {
     (rowsByDate[row.date] ||= []).push(row);
   }
   const dates = Object.keys(rowsByDate).sort();
+
+  const unscheduled = [];
+  for (const d of dates) {
+    for (const row of rowsByDate[d]) {
+      if (!parseSlot(row.slot)) unscheduled.push({ row, date: d });
+    }
+  }
+
   const columnsHtml = dates
     .map((d) => renderDayColumn(d, rowsByDate[d]))
     .join("\n");
 
-  return `${renderLegend()}
+  return `${renderUnscheduledBand(unscheduled)}
+  ${renderLegend()}
   <div class="cal">
     <div class="cal-scroll">
       <div class="cal-grid">
@@ -325,47 +343,32 @@ export function renderBody(rows, { generatedAt, databaseUrl } = {}) {
   const rangeLabel = formatRange(dates);
 
   return `
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   * { box-sizing: border-box; }
   .agenda-root {
-    --bg: #eef0f3;
-    --card-bg: #ffffff;
-    --panel: #f7f8fa;
-    --text: #161a20;
-    --muted: #626a76;
-    --faint: #9aa2ae;
-    --border: #e2e5ea;
-    --divider: #edeff2;
-    --accent: #146a72;
-    --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, ui-serif, serif;
-    --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, sans-serif;
+    --bg: #0b1014;
+    --card-bg: #121a21;
+    --panel: #0f171d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --faint: #5a6675;
+    --border: #243038;
+    --divider: #1a232c;
+    --accent: #2ea1df;
+    --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
+    --font-body: "Inter Tight", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    color-scheme: dark;
     font-family: var(--font-body);
     color: var(--text);
     background: var(--bg);
+    min-height: 100vh;
     padding: 22px 26px 56px;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
-  }
-  @media (prefers-color-scheme: dark) {
-    .agenda-root {
-      --bg: #101318;
-      --card-bg: #191d24;
-      --panel: #14171d;
-      --text: #eceef2;
-      --muted: #9aa2b0;
-      --faint: #6a7280;
-      --border: #292e37;
-      --divider: #22262e;
-      --accent: #64c2cb;
-    }
-  }
-  :root[data-theme="dark"] .agenda-root {
-    --bg: #101318; --card-bg: #191d24; --panel: #14171d; --text: #eceef2;
-    --muted: #9aa2b0; --faint: #6a7280; --border: #292e37; --divider: #22262e; --accent: #64c2cb;
-  }
-  :root[data-theme="light"] .agenda-root {
-    --bg: #eef0f3; --card-bg: #ffffff; --panel: #f7f8fa; --text: #161a20;
-    --muted: #626a76; --faint: #9aa2ae; --border: #e2e5ea; --divider: #edeff2; --accent: #146a72;
   }
 
   /* ---------- masthead ---------- */
@@ -379,12 +382,11 @@ export function renderBody(rows, { generatedAt, databaseUrl } = {}) {
     grid-column: 3; grid-row: 1 / span 3; align-self: center; justify-self: end;
     display: inline-flex; align-items: center; justify-content: center;
     width: 38px; height: 38px; border-radius: 50%;
-    border: 1px solid var(--border); background: var(--card-bg); color: var(--muted);
+    border: 1px solid var(--border); background: var(--panel); color: var(--muted);
     cursor: pointer; padding: 0;
-    box-shadow: 0 1px 2px rgba(15,20,30,0.05);
     transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
   }
-  .refresh-btn:hover { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+  .refresh-btn:hover { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); background: color-mix(in srgb, var(--accent) 10%, var(--panel)); }
   .refresh-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .refresh-btn svg { width: 17px; height: 17px; }
   .refresh-btn.spinning svg { animation: rf-spin 0.8s linear infinite; }
@@ -395,7 +397,7 @@ export function renderBody(rows, { generatedAt, databaseUrl } = {}) {
     grid-row: 1 / span 3; align-self: center;
     display: inline-block; background: #ffffff; border-radius: 9px;
     padding: 6px 12px 7px;
-    box-shadow: 0 1px 2px rgba(15,20,30,0.08), 0 6px 18px -12px rgba(15,20,30,0.35);
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 6px 20px -8px rgba(0,0,0,0.6);
     font-family: ui-rounded, "SF Pro Rounded", "Segoe UI", var(--font-body);
     font-size: 1.18rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1;
     user-select: none;
@@ -403,15 +405,33 @@ export function renderBody(rows, { generatedAt, databaseUrl } = {}) {
   .brandmark .bm-a { color: #0a1a9b; }
   .brandmark .bm-b { color: #2f80e4; }
   .mh-eyebrow {
-    font-size: 0.64rem; font-weight: 600; letter-spacing: 0.15em;
-    color: var(--accent); font-variant-numeric: tabular-nums;
+    font-family: var(--font-mono);
+    font-size: 0.64rem; font-weight: 500; letter-spacing: 0.18em;
+    color: var(--accent);
   }
   .agenda-root h1 {
-    font-family: var(--font-display); font-weight: 600;
-    font-size: clamp(1.35rem, 1.05rem + 1.2vw, 1.8rem);
-    line-height: 1.1; letter-spacing: -0.01em; margin: 0; text-wrap: balance;
+    font-family: var(--font-display); font-weight: 500;
+    font-size: clamp(1.4rem, 1.05rem + 1.4vw, 1.95rem);
+    line-height: 1.08; letter-spacing: -0.005em; margin: 2px 0 0; text-wrap: balance;
   }
-  .subtitle { color: var(--muted); font-size: 0.78rem; margin: 0; line-height: 1.4; }
+  .subtitle { color: var(--muted); font-size: 0.76rem; margin: 3px 0 0; line-height: 1.4; font-family: var(--font-mono); }
+
+  /* ---------- unscheduled band (top) ---------- */
+  .unscheduled-top {
+    max-width: 1180px; margin: 0 auto 12px;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+    padding: 11px 15px; background: var(--panel);
+    border: 1px solid var(--border); border-radius: 12px;
+    border-left: 3px solid color-mix(in srgb, var(--accent) 70%, var(--border));
+  }
+  .unscheduled-top-label {
+    font-family: var(--font-mono); font-size: 0.6rem; font-weight: 600;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint);
+  }
+  .chip-day {
+    font-family: var(--font-mono); font-weight: 600; font-size: 0.92em;
+    margin-right: 6px; opacity: 0.75;
+  }
 
   /* ---------- legend ---------- */
   .legend {
@@ -423,7 +443,8 @@ export function renderBody(rows, { generatedAt, databaseUrl } = {}) {
   }
   .leg-group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
   .leg-title {
-    font-size: 0.62rem; font-weight: 700; letter-spacing: 0.09em;
+    font-family: var(--font-mono);
+    font-size: 0.6rem; font-weight: 600; letter-spacing: 0.11em;
     text-transform: uppercase; color: var(--faint); margin-right: 2px;
   }
   .leg-item { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
@@ -439,7 +460,7 @@ export function renderBody(rows, { generatedAt, databaseUrl } = {}) {
     max-width: 1180px; margin: 0 auto;
     background: var(--card-bg); border: 1px solid var(--border);
     border-radius: 14px; overflow: hidden;
-    box-shadow: 0 1px 2px rgba(15,20,30,0.04), 0 12px 30px -18px rgba(15,20,30,0.28);
+    box-shadow: 0 24px 60px -30px rgba(0,0,0,0.75);
   }
   .cal-scroll { overflow-x: auto; }
   .cal-grid { display: flex; min-width: 720px; }
@@ -449,11 +470,12 @@ export function renderBody(rows, { generatedAt, databaseUrl } = {}) {
     margin-top: ${HEADER_HEIGHT}px; border-right: 1px solid var(--divider);
   }
   .time-label {
-    position: absolute; right: 8px; top: 0; font-size: 10.5px; font-weight: 600;
+    position: absolute; right: 8px; top: 0; font-family: var(--font-mono);
+    font-size: 10px; font-weight: 500;
     color: var(--faint); transform: translateY(-50%); white-space: nowrap;
-    font-variant-numeric: tabular-nums; letter-spacing: 0.02em;
+    letter-spacing: 0.01em;
   }
-  .tl-min { color: color-mix(in srgb, var(--faint) 60%, transparent); font-weight: 500; }
+  .tl-min { color: color-mix(in srgb, var(--faint) 55%, transparent); font-weight: 400; }
 
   .days-area { display: flex; flex: 1 1 auto; }
   .day-col { display: flex; flex-direction: column; min-width: 150px; flex: 1 1 0; }
@@ -465,75 +487,71 @@ export function renderBody(rows, { generatedAt, databaseUrl } = {}) {
     display: flex; flex-direction: column; justify-content: space-between;
   }
   .day-head-top { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
-  .day-name { font-family: var(--font-display); font-size: 0.92rem; font-weight: 600; letter-spacing: -0.01em; }
-  .day-date { font-size: 0.7rem; font-weight: 600; color: var(--faint); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .day-name { font-family: var(--font-display); font-size: 0.96rem; font-weight: 500; letter-spacing: -0.005em; }
+  .day-date { font-family: var(--font-mono); font-size: 0.68rem; font-weight: 500; color: var(--faint); white-space: nowrap; }
   .day-cities { display: flex; align-items: center; flex-wrap: wrap; gap: 3px; }
   .day-cities-empty { color: var(--faint); font-size: 0.7rem; }
   .city-chip {
     font-size: 0.62rem; font-weight: 600; padding: 1px 7px; border-radius: 999px;
-    color: color-mix(in srgb, var(--c) 76%, var(--text));
-    background: color-mix(in srgb, var(--c) 16%, var(--card-bg));
+    color: color-mix(in srgb, var(--c) 82%, var(--text));
+    background: color-mix(in srgb, var(--c) 22%, var(--card-bg));
   }
   .transit-arrow { color: var(--faint); font-size: 0.6rem; }
 
   .timeline-col { position: relative; flex: 0 0 auto; }
   .hour-line { position: absolute; left: 0; right: 0; border-top: 1px solid var(--divider); pointer-events: none; }
   .hour-line.major { border-top-color: var(--border); }
-  .hour-line.minor { border-top-style: dotted; }
+  .hour-line.minor { border-top-style: dotted; opacity: 0.6; }
 
   /* ---------- event blocks ---------- */
   .block {
     position: absolute; overflow: hidden;
     padding: 4px 8px 4px 9px; border-radius: 7px; text-decoration: none;
-    background: color-mix(in srgb, var(--c) 13%, var(--card-bg));
+    background: color-mix(in srgb, var(--c) 22%, var(--card-bg));
     border-left: 3px solid var(--c);
-    color: color-mix(in srgb, var(--c) 72%, var(--text));
+    color: color-mix(in srgb, var(--c) 82%, var(--text));
     transition: transform 0.13s ease, box-shadow 0.13s ease, background 0.13s ease;
   }
   .block.tbc {
     border-left-style: dashed;
-    background: color-mix(in srgb, var(--c) 8%, var(--card-bg));
+    background: color-mix(in srgb, var(--c) 12%, var(--card-bg));
   }
   .block:hover {
     transform: translateY(-1px);
-    background: color-mix(in srgb, var(--c) 18%, var(--card-bg));
-    box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--c) 60%, transparent);
+    background: color-mix(in srgb, var(--c) 30%, var(--card-bg));
+    box-shadow: 0 8px 20px -8px color-mix(in srgb, var(--c) 70%, transparent);
     z-index: 5;
   }
   .b-time {
-    display: block; font-size: 0.62rem; font-weight: 600; line-height: 1.2;
-    font-variant-numeric: tabular-nums; letter-spacing: 0.01em;
-    color: color-mix(in srgb, var(--c) 58%, var(--muted));
+    display: block; font-family: var(--font-mono);
+    font-size: 0.6rem; font-weight: 500; line-height: 1.2; letter-spacing: 0.01em;
+    color: color-mix(in srgb, var(--c) 72%, var(--muted));
   }
   .b-title {
     display: block; font-size: 0.72rem; font-weight: 600; line-height: 1.22;
     margin-top: 1px; overflow: hidden;
+    color: color-mix(in srgb, var(--c) 84%, var(--text));
   }
   .b-contacts {
     font-size: 0.6rem; font-weight: 500; margin-top: 3px; line-height: 1.2;
-    color: color-mix(in srgb, var(--c) 40%, var(--muted));
+    color: color-mix(in srgb, var(--c) 55%, var(--muted));
   }
 
-  /* ---------- unscheduled ---------- */
-  .unscheduled { padding: 9px 10px 11px; border-top: 1px solid var(--divider); background: var(--panel); }
-  .unscheduled-label {
-    font-size: 0.6rem; font-weight: 700; color: var(--faint);
-    text-transform: uppercase; letter-spacing: 0.09em; margin-bottom: 6px;
-  }
-  .unscheduled-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  /* ---------- chips ---------- */
+  .unscheduled-chips { display: flex; flex-wrap: wrap; gap: 6px; }
   .chip {
     display: inline-block; font-size: 0.68rem; font-weight: 600;
-    padding: 2px 9px; border-radius: 999px; text-decoration: none;
-    color: color-mix(in srgb, var(--c) 74%, var(--text));
-    background: color-mix(in srgb, var(--c) 13%, var(--card-bg));
-    border: 1px solid color-mix(in srgb, var(--c) 26%, transparent);
+    padding: 3px 10px; border-radius: 999px; text-decoration: none;
+    color: color-mix(in srgb, var(--c) 86%, var(--text));
+    background: color-mix(in srgb, var(--c) 18%, var(--card-bg));
+    border: 1px solid color-mix(in srgb, var(--c) 38%, transparent);
     transition: background 0.13s ease;
   }
-  .chip:hover { background: color-mix(in srgb, var(--c) 22%, var(--card-bg)); }
+  .chip:hover { background: color-mix(in srgb, var(--c) 28%, var(--card-bg)); }
 
   .agenda-footer {
     max-width: 1180px; margin: 20px auto 0; color: var(--faint);
-    font-size: 0.72rem; text-align: center;
+    font-size: 0.7rem; text-align: center; font-family: var(--font-mono);
   }
   .agenda-footer a { color: var(--accent); text-decoration: none; }
 
