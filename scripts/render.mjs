@@ -260,23 +260,62 @@ function renderDayColumn(date, events) {
     </div>`;
 }
 
-// Consolidated "Unscheduled" band shown at the top of the agenda. Collects
-// every dated-but-slotless event, each chip tagged with its day for context.
-function renderUnscheduledBand(items) {
+// Rightmost calendar column collecting every dated-but-slotless event,
+// grouped and ordered by city (trip order), each item tagged with its day.
+function renderUnscheduledColumn(items) {
   if (!items.length) return "";
-  const chips = items
-    .map(({ row, date }) => {
-      const cat = CATEGORY[categorize(row.event)];
-      const { date: dateLabel } = formatDayHeading(date);
-      return `<span class="chip" style="--c:${cat.hue}"><span class="chip-day">${escapeHtml(
-        dateLabel
-      )}</span>${escapeHtml(row.event)}</span>`;
+
+  const groups = new Map();
+  for (const entry of items) {
+    const key = entry.row.city && CITY_HUE[entry.row.city] ? entry.row.city : "__none__";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(entry);
+  }
+
+  const cityOrder = [...Object.keys(CITY_HUE), "__none__"];
+  const groupsHtml = cityOrder
+    .filter((c) => groups.has(c))
+    .map((c) => {
+      const rows = groups.get(c).sort((a, b) =>
+        a.date < b.date
+          ? -1
+          : a.date > b.date
+          ? 1
+          : a.row.event.localeCompare(b.row.event)
+      );
+      const cityLabel =
+        c === "__none__"
+          ? `<span class="unsched-city-label">No city</span>`
+          : `<span class="city-chip" style="--c:${cityHue(c)}">${escapeHtml(c)}</span>`;
+      const itemsHtml = rows
+        .map(({ row, date }) => {
+          const cat = CATEGORY[categorize(row.event)];
+          const { date: dateLabel } = formatDayHeading(date);
+          return `<div class="unsched-item" style="--c:${cat.hue}">
+            <span class="ui-title">${escapeHtml(row.event)}</span>
+            <span class="ui-day">${escapeHtml(dateLabel)}</span>
+          </div>`;
+        })
+        .join("");
+      return `<div class="unsched-group">
+          <div class="unsched-city">${cityLabel}</div>
+          <div class="unsched-items">${itemsHtml}</div>
+        </div>`;
     })
     .join("");
+
   return `
-    <div class="unscheduled-top">
-      <span class="unscheduled-top-label">Unscheduled</span>
-      <div class="unscheduled-chips">${chips}</div>
+    <div class="day-col unsched-col">
+      <div class="day-header">
+        <div class="day-head-top">
+          <span class="day-name">Unscheduled</span>
+          <span class="day-date">${items.length}</span>
+        </div>
+        <div class="day-cities day-cities-empty">by city</div>
+      </div>
+      <div class="unsched-body">
+        ${groupsHtml}
+      </div>
     </div>`;
 }
 
@@ -324,14 +363,14 @@ export function renderContent(rows) {
     .map((d) => renderDayColumn(d, rowsByDate[d]))
     .join("\n");
 
-  return `${renderUnscheduledBand(unscheduled)}
-  ${renderLegend()}
+  return `${renderLegend()}
   <div class="cal">
     <div class="cal-scroll">
       <div class="cal-grid">
         ${renderTimeAxis()}
         <div class="days-area">
           ${columnsHtml}
+          ${renderUnscheduledColumn(unscheduled)}
         </div>
       </div>
     </div>
@@ -415,23 +454,6 @@ export function renderBody(rows, { generatedAt, databaseUrl } = {}) {
     line-height: 1.08; letter-spacing: -0.005em; margin: 2px 0 0; text-wrap: balance;
   }
   .subtitle { color: var(--muted); font-size: 0.76rem; margin: 3px 0 0; line-height: 1.4; font-family: var(--font-mono); }
-
-  /* ---------- unscheduled band (top) ---------- */
-  .unscheduled-top {
-    max-width: 1180px; margin: 0 auto 12px;
-    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
-    padding: 11px 15px; background: var(--panel);
-    border: 1px solid var(--border); border-radius: 12px;
-    border-left: 3px solid color-mix(in srgb, var(--accent) 70%, var(--border));
-  }
-  .unscheduled-top-label {
-    font-family: var(--font-mono); font-size: 0.6rem; font-weight: 600;
-    letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint);
-  }
-  .chip-day {
-    font-family: var(--font-mono); font-weight: 600; font-size: 0.92em;
-    margin-right: 6px; opacity: 0.75;
-  }
 
   /* ---------- legend ---------- */
   .legend {
@@ -537,17 +559,29 @@ export function renderBody(rows, { generatedAt, databaseUrl } = {}) {
     color: color-mix(in srgb, var(--c) 55%, var(--muted));
   }
 
-  /* ---------- chips ---------- */
-  .unscheduled-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .chip {
-    display: inline-block; font-size: 0.68rem; font-weight: 600;
-    padding: 3px 10px; border-radius: 999px; text-decoration: none;
-    color: color-mix(in srgb, var(--c) 86%, var(--text));
-    background: color-mix(in srgb, var(--c) 18%, var(--card-bg));
-    border: 1px solid color-mix(in srgb, var(--c) 38%, transparent);
-    transition: background 0.13s ease;
+  /* ---------- unscheduled column (right) ---------- */
+  .unsched-col { min-width: 178px; }
+  .unsched-body {
+    flex: 1 1 auto; padding: 11px 10px 12px;
+    background: color-mix(in srgb, var(--accent) 4%, var(--card-bg));
+    display: flex; flex-direction: column; gap: 13px;
   }
-  .chip:hover { background: color-mix(in srgb, var(--c) 28%, var(--card-bg)); }
+  .unsched-group { display: flex; flex-direction: column; gap: 6px; }
+  .unsched-city-label {
+    font-family: var(--font-mono); font-size: 0.58rem; font-weight: 600;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint);
+  }
+  .unsched-items { display: flex; flex-direction: column; gap: 5px; }
+  .unsched-item {
+    border-left: 3px solid var(--c); border-radius: 6px; padding: 5px 8px;
+    background: color-mix(in srgb, var(--c) 15%, var(--card-bg));
+    display: flex; flex-direction: column; gap: 1px;
+  }
+  .ui-title {
+    font-size: 0.71rem; font-weight: 600; line-height: 1.22;
+    color: color-mix(in srgb, var(--c) 84%, var(--text));
+  }
+  .ui-day { font-family: var(--font-mono); font-size: 0.58rem; color: var(--faint); }
 
   .agenda-footer {
     max-width: 1180px; margin: 20px auto 0; color: var(--faint);
