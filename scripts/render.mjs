@@ -610,7 +610,7 @@ export function renderBody(rows, { generatedAt, databaseUrl } = {}) {
     (function () {
       var btn = document.getElementById("refresh-btn");
       if (!btn) return;
-      btn.addEventListener("click", function () {
+      function refresh(isAuto) {
         if (btn.classList.contains("spinning")) return;
         btn.classList.add("spinning");
         fetch("/api/agenda", { headers: { accept: "application/json" }, cache: "no-store" })
@@ -619,8 +619,8 @@ export function renderBody(rows, { generatedAt, databaseUrl } = {}) {
             return r.json();
           })
           .then(function (data) {
-            // Look these up at click time — the script tag is parsed before
-            // #agenda-content exists, so resolving them earlier returns null.
+            // Look these up now (not at script-parse time) — this script tag
+            // precedes #agenda-content in the DOM, so it would resolve to null.
             var content = document.getElementById("agenda-content");
             var sub = document.getElementById("mh-subtitle");
             if (content && data.content) content.innerHTML = data.content;
@@ -628,11 +628,15 @@ export function renderBody(rows, { generatedAt, databaseUrl } = {}) {
             btn.classList.remove("spinning");
           })
           .catch(function () {
-            // No live endpoint here (e.g. static preview / GitHub Pages): reload.
             btn.classList.remove("spinning");
-            location.reload();
+            // Manual click with no live endpoint (e.g. static host): reload.
+            // Auto refresh: keep the pre-rendered content — never reload (would loop).
+            if (!isAuto) location.reload();
           });
-      });
+      }
+      btn.addEventListener("click", function () { refresh(false); });
+      // Pull the latest from Notion on every page open, not just on button press.
+      refresh(true);
     })();
   </script>
   <div id="agenda-content">
