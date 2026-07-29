@@ -332,6 +332,68 @@ function renderUnscheduledColumn(items) {
     </div>`;
 }
 
+// A single day as a vertical list of event cards — the mobile layout, shown
+// instead of the timeline grid on narrow screens.
+function renderMobileDay(date, events) {
+  const scheduled = [];
+  const unscheduled = [];
+  for (const row of events) {
+    const slot = parseSlot(row.slot);
+    if (slot) scheduled.push({ row, slot });
+    else unscheduled.push(row);
+  }
+  scheduled.sort((a, b) => a.slot.start - b.slot.start || a.slot.end - b.slot.end);
+
+  const { weekday, date: dateLabel } = formatDayHeading(date);
+  const ordered = [...scheduled.map((s) => s.row), ...unscheduled];
+  const citySeq = [];
+  for (const e of ordered) {
+    if (e.city && citySeq[citySeq.length - 1] !== e.city) citySeq.push(e.city);
+  }
+  const cityLine = citySeq.length
+    ? `<div class="m-day-cities">${citySeq
+        .map(
+          (c) =>
+            `<span class="city-chip" style="--c:${cityHue(c)}">${escapeHtml(c)}</span>`
+        )
+        .join('<span class="transit-arrow">&rarr;</span>')}</div>`
+    : "";
+
+  const card = (row, slot) => {
+    const cat = CATEGORY[categorize(row.event)];
+    const solid = row.status === "Confirmed";
+    const pid = pageId(row.url);
+    const tag = pid ? "a" : "div";
+    const href = pid ? ` href="/event?id=${pid}"` : "";
+    const timeLabel = slot
+      ? slot.openEnded
+        ? `${minToLabel(slot.start)} &rarr;`
+        : `${minToLabel(slot.start)}&ndash;${minToLabel(slot.end)}`
+      : "&mdash;";
+    const contacts = row.contacts.length
+      ? `<span class="m-contacts">${row.contacts.map((c) => escapeHtml(c)).join(", ")}</span>`
+      : "";
+    return `<${tag} class="m-event ${solid ? "confirmed" : "tbc"}"${href} style="--c:${cat.hue}">
+        <span class="m-time">${timeLabel}</span>
+        <span class="m-body"><span class="m-title">${escapeHtml(row.event)}</span>${contacts}</span>
+      </${tag}>`;
+  };
+
+  const schedHtml = scheduled.map(({ row, slot }) => card(row, slot)).join("");
+  const unschedHtml = unscheduled.length
+    ? `<div class="m-unsched-label">No time set</div>` +
+      unscheduled.map((row) => card(row, null)).join("")
+    : "";
+
+  return `<section class="m-day">
+      <div class="m-day-head">
+        <div class="m-day-title"><span class="m-day-name">${weekday}</span><span class="m-day-date">${dateLabel}</span></div>
+        ${cityLine}
+      </div>
+      <div class="m-events">${schedHtml}${unschedHtml}</div>
+    </section>`;
+}
+
 function hourLines() {
   let out = "";
   for (let h = SH; h <= EH; h++) {
@@ -375,6 +437,7 @@ export function renderContent(rows) {
   const columnsHtml = dates
     .map((d) => renderDayColumn(d, rowsByDate[d]))
     .join("\n");
+  const mobileHtml = dates.map((d) => renderMobileDay(d, rowsByDate[d])).join("");
 
   return `${renderLegend()}
   <div class="cal">
@@ -387,6 +450,9 @@ export function renderContent(rows) {
         </div>
       </div>
     </div>
+  </div>
+  <div class="cal-mobile">
+    ${mobileHtml}
   </div>`;
 }
 
@@ -599,6 +665,48 @@ export function renderBody(rows, { generatedAt, databaseUrl } = {}) {
     color: color-mix(in srgb, var(--c) 84%, var(--text));
   }
   .ui-day { font-family: var(--font-mono); font-size: 0.58rem; color: var(--faint); }
+
+  /* ---------- mobile agenda list ---------- */
+  .cal-mobile { display: none; }
+  .m-day { max-width: 1180px; margin: 0 auto; }
+  .m-day-head {
+    position: sticky; top: 0; z-index: 3; background: var(--bg);
+    display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px;
+    padding: 11px 2px 8px; border-bottom: 1px solid var(--border);
+  }
+  .m-day-title { display: flex; align-items: baseline; gap: 8px; }
+  .m-day-name { font-family: var(--font-display); font-size: 1.05rem; font-weight: 500; }
+  .m-day-date { font-family: var(--font-mono); font-size: 0.72rem; color: var(--faint); }
+  .m-day-cities { display: flex; align-items: center; flex-wrap: wrap; gap: 3px; }
+  .m-events { display: flex; flex-direction: column; gap: 7px; padding: 9px 0 18px; }
+  .m-event {
+    display: flex; gap: 11px; align-items: flex-start; text-decoration: none;
+    background: color-mix(in srgb, var(--c) 15%, var(--card-bg));
+    border: 1px solid var(--border); border-left: 3px solid var(--c);
+    border-radius: 9px; padding: 10px 12px;
+  }
+  .m-event.tbc { border-left-style: dashed; background: color-mix(in srgb, var(--c) 9%, var(--card-bg)); }
+  a.m-event:active { filter: brightness(1.12); }
+  .m-time {
+    font-family: var(--font-mono); font-size: 0.72rem; font-weight: 500; white-space: nowrap;
+    color: color-mix(in srgb, var(--c) 72%, var(--muted)); flex: 0 0 auto; min-width: 82px; padding-top: 1px;
+  }
+  .m-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .m-title { font-size: 0.9rem; font-weight: 600; line-height: 1.25; color: color-mix(in srgb, var(--c) 86%, var(--text)); }
+  .m-contacts { font-size: 0.72rem; color: var(--muted); }
+  .m-unsched-label {
+    font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--faint); margin: 9px 0 1px;
+  }
+
+  @media (max-width: 720px) {
+    .agenda-root { padding: 16px 13px 44px; }
+    .agenda-root h1 { font-size: 1.35rem; }
+    .masthead { column-gap: 12px; }
+    .legend { font-size: 0.68rem; gap: 8px 14px; padding: 10px 12px; }
+    .cal { display: none; }
+    .cal-mobile { display: block; }
+  }
 
   .agenda-footer {
     max-width: 1180px; margin: 20px auto 0; color: var(--faint);
