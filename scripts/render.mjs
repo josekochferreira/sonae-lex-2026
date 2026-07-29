@@ -46,6 +46,13 @@ function cityHue(name) {
   return CITY_HUE[name] || "#8b949e";
 }
 
+// Notion page id (32 hex) from a page URL, used to link each event to its
+// own /event page. Returns "" when no id can be found.
+function pageId(url) {
+  const matches = String(url || "").match(/[0-9a-fA-F]{32}/g);
+  return matches ? matches[matches.length - 1] : "";
+}
+
 function parseSlot(slot) {
   if (!slot) return null;
   const s = slot.trim();
@@ -220,14 +227,17 @@ function renderBlock(row, slot, lane = { index: 0, count: 1 }) {
     : "";
 
   const tall = height > 46;
+  const pid = pageId(row.url);
+  const tag = pid ? "a" : "div";
+  const href = pid ? ` href="/event?id=${pid}"` : "";
 
   return `
-        <div class="block ${solid ? "confirmed" : "tbc"}"
+        <${tag} class="block ${solid ? "confirmed" : "tbc"}"${href}
            style="top:${top}px;height:${height}px;left:calc(${laneLeft}% + 3px);width:calc(${laneW}% - 6px);--c:${cat.hue}">
           <span class="b-time">${timeLabel}</span>
           <span class="b-title">${escapeHtml(row.event)}</span>
           ${tall ? contacts : ""}
-        </div>`;
+        </${tag}>`;
 }
 
 function renderDayColumn(date, events) {
@@ -291,10 +301,13 @@ function renderUnscheduledColumn(items) {
         .map(({ row, date }) => {
           const cat = CATEGORY[categorize(row.event)];
           const { date: dateLabel } = formatDayHeading(date);
-          return `<div class="unsched-item" style="--c:${cat.hue}">
+          const pid = pageId(row.url);
+          const tag = pid ? "a" : "div";
+          const href = pid ? ` href="/event?id=${pid}"` : "";
+          return `<${tag} class="unsched-item"${href} style="--c:${cat.hue}">
             <span class="ui-title">${escapeHtml(row.event)}</span>
             <span class="ui-day">${escapeHtml(dateLabel)}</span>
-          </div>`;
+          </${tag}>`;
         })
         .join("");
       return `<div class="unsched-group">
@@ -534,6 +547,7 @@ export function renderBody(rows, { generatedAt, databaseUrl } = {}) {
     color: color-mix(in srgb, var(--c) 82%, var(--text));
     transition: transform 0.13s ease, box-shadow 0.13s ease, background 0.13s ease;
   }
+  a.block { cursor: pointer; }
   .block.tbc {
     border-left-style: dashed;
     background: color-mix(in srgb, var(--c) 12%, var(--card-bg));
@@ -576,7 +590,10 @@ export function renderBody(rows, { generatedAt, databaseUrl } = {}) {
     border-left: 3px solid var(--c); border-radius: 6px; padding: 5px 8px;
     background: color-mix(in srgb, var(--c) 15%, var(--card-bg));
     display: flex; flex-direction: column; gap: 1px;
+    text-decoration: none; transition: background 0.13s ease;
   }
+  a.unsched-item { cursor: pointer; }
+  a.unsched-item:hover { background: color-mix(in srgb, var(--c) 26%, var(--card-bg)); }
   .ui-title {
     font-size: 0.71rem; font-weight: 600; line-height: 1.22;
     color: color-mix(in srgb, var(--c) 84%, var(--text));
