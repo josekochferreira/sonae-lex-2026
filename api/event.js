@@ -39,6 +39,23 @@ function chip(text, hue) {
   return `<span class="ev-chip" style="--c:${hue}">${esc(text)}</span>`;
 }
 
+function renderMap(loc) {
+  if (!loc) return "";
+  const isUrl = /^https?:\/\//i.test(loc);
+  if (isUrl) {
+    return `<a class="ev-maplink" href="${esc(loc)}" target="_blank" rel="noopener">Open location in Maps &rarr;</a>`;
+  }
+  const q = encodeURIComponent(loc);
+  const embed = `https://maps.google.com/maps?q=${q}&z=15&output=embed`;
+  const open = `https://www.google.com/maps/search/?api=1&query=${q}`;
+  return `
+    <div class="ev-map">
+      <iframe title="Location map for ${esc(loc)}" loading="lazy"
+        referrerpolicy="no-referrer-when-downgrade" src="${esc(embed)}"></iframe>
+    </div>
+    <a class="ev-maplink" href="${esc(open)}" target="_blank" rel="noopener">Open in Google Maps &rarr;</a>`;
+}
+
 function renderMeta(meta) {
   const bits = [];
   if (meta.date) bits.push(`<span class="ev-date">${esc(formatDate(meta.date))}</span>`);
@@ -120,6 +137,11 @@ function page(title, bodyHtml) {
   .content .nb-toggle { margin: 0 0 12px; }
   .content .nb-toggle summary { cursor: pointer; font-weight: 600; }
   .content .nb-toggle-body { padding: 8px 0 0 14px; }
+  .ev-map { margin: 2px 0 10px; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
+  .ev-map iframe { width: 100%; height: 320px; border: 0; display: block; }
+  .ev-maplink { display: inline-block; margin: 0 0 24px; font-family: var(--fm);
+    font-size: 0.76rem; color: var(--accent); text-decoration: none; }
+  .ev-maplink:hover { text-decoration: underline; }
   .empty-note { color: var(--muted); font-style: italic; }
   .err { color: #ec4899; }
 </style>
@@ -162,6 +184,7 @@ export default async function handler(req, res) {
         <h1>${esc(title)}</h1>
         ${renderMeta(meta)}
       </div>
+      ${renderMap(meta.location)}
       <div class="content">${
         contentHtml || `<p class="empty-note">No additional details in Notion yet.</p>`
       }</div>`;

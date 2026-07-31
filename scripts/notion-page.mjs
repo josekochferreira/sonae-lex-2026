@@ -160,6 +160,27 @@ function renderBlocks(blocks) {
   return html;
 }
 
+// Best-effort extraction of a usable location query (address, place name, or
+// "lat,lng") from a page's "Location" property, tolerant of several shapes
+// (rich_text, url, select, title, or the newer "place" type).
+function extractLocation(props) {
+  const p = (props && (props.Location || props.location)) || null;
+  if (!p || typeof p !== "object") return "";
+  if (Array.isArray(p.rich_text) && p.rich_text.length) return plain(p.rich_text);
+  if (typeof p.url === "string" && p.url) return p.url;
+  if (p.select && p.select.name) return p.select.name;
+  if (Array.isArray(p.title) && p.title.length) return plain(p.title);
+  const place = p.place || p.location || p;
+  if (place && typeof place === "object") {
+    const name = place.name || place.formatted_address || place.address;
+    const lat = place.latitude != null ? place.latitude : place.lat;
+    const lng = place.longitude != null ? place.longitude : place.lng;
+    if (name) return String(name);
+    if (lat != null && lng != null) return `${lat},${lng}`;
+  }
+  return "";
+}
+
 // Fetch a page's agenda metadata + rendered body content.
 export async function fetchEventPage(id, { token = process.env.NOTION_TOKEN } = {}) {
   if (!token) throw new Error("Missing NOTION_TOKEN environment variable.");
@@ -172,9 +193,11 @@ export async function fetchEventPage(id, { token = process.env.NOTION_TOKEN } = 
     city: (props.City && props.City.select && props.City.select.name) || null,
     status:
       (props.Status && props.Status.status && props.Status.status.name) || null,
+    type: ((props.Type && props.Type.multi_select) || []).map((o) => o.name),
     contacts: ((props.KeyContact && props.KeyContact.multi_select) || []).map(
       (o) => o.name
     ),
+    location: extractLocation(props),
     date: (props.Date && props.Date.date && props.Date.date.start) || null,
     url: page.url || "",
   };
