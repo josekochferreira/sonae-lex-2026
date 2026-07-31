@@ -15,14 +15,38 @@ const CITY_HUE = {
 };
 
 const CATEGORY = {
-  visit: { label: "Site visit", hue: "#2ea1df" },
-  session: { label: "Briefing", hue: "#a78bfa" },
+  visit: { label: "Company visit", hue: "#2ea1df" },
+  showroom: { label: "Showroom", hue: "#2dd4bf" },
+  experience: { label: "Experience", hue: "#4ade80" },
+  session: { label: "Presentation", hue: "#a78bfa" },
   meal: { label: "Meal", hue: "#fb923c" },
-  transfer: { label: "Transfer", hue: "#5a6675" },
-  hotel: { label: "Hotel", hue: "#4ade80" },
-  leisure: { label: "Leisure", hue: "#ec4899" },
+  transfer: { label: "Transport", hue: "#5a6675" },
+  leisure: { label: "Free / leisure", hue: "#ec4899" },
   other: { label: "Other / TBD", hue: "#8b949e" },
 };
+
+// The event's color is driven by the Notion "Type" multi-select. When an
+// event has several Types, the first match in this priority order wins.
+const TYPE_TO_CAT = {
+  CompanyVisit: "visit",
+  Showroom: "showroom",
+  Experience: "experience",
+  Presentation: "session",
+  Meals: "meal",
+  Transportation: "transfer",
+  Leisure: "leisure",
+  "Free Time": "leisure",
+};
+const TYPE_PRIORITY = [
+  "CompanyVisit",
+  "Showroom",
+  "Presentation",
+  "Experience",
+  "Meals",
+  "Transportation",
+  "Leisure",
+  "Free Time",
+];
 
 const SH = 6; // timeline start hour
 const EH = 24; // timeline end hour
@@ -30,15 +54,24 @@ const PX_PER_MIN = 1.15;
 const TIMELINE_HEIGHT = (EH - SH) * 60 * PX_PER_MIN;
 const HEADER_HEIGHT = 70;
 
-function categorize(title) {
+// Category (color) for an event. Prefers the Notion "Type" tags; only when an
+// event has no usable Type does it fall back to guessing from the title.
+function categoryKey(row) {
+  const types = (row && row.type) || [];
+  for (const t of TYPE_PRIORITY) {
+    if (types.includes(t) && TYPE_TO_CAT[t]) return TYPE_TO_CAT[t];
+  }
+  return categorizeByTitle(row && row.event);
+}
+
+function categorizeByTitle(title) {
   const t = (title || "").toLowerCase();
   if (!title || title === "(untitled)") return "other";
-  if (/arrival|move|transfer|train|maglev|airport|flight/.test(t))
+  if (/arrival|move|transfer|train|maglev|airport|flight|hotel|check-in/.test(t))
     return "transfer";
-  if (/hotel|check-in/.test(t)) return "hotel";
   if (/breakfast|lunch|dinner|\bmeal\b/.test(t)) return "meal";
   if (/leisure|free time|free evening/.test(t)) return "leisure";
-  if (/session|welcome|briefing/.test(t)) return "session";
+  if (/session|welcome|briefing|presentation/.test(t)) return "session";
   return "visit";
 }
 
@@ -211,7 +244,7 @@ function assignLanes(items) {
 }
 
 function renderBlock(row, slot, lane = { index: 0, count: 1 }) {
-  const cat = CATEGORY[categorize(row.event)];
+  const cat = CATEGORY[categoryKey(row)];
   const top = Math.max(0, Math.round((slot.start - SH * 60) * PX_PER_MIN));
   const rawHeight = (slot.end - slot.start) * PX_PER_MIN;
   const height = Math.max(Math.round(rawHeight), 30);
@@ -299,7 +332,7 @@ function renderUnscheduledColumn(items) {
           : `<span class="city-chip" style="--c:${cityHue(c)}">${escapeHtml(c)}</span>`;
       const itemsHtml = rows
         .map(({ row, date }) => {
-          const cat = CATEGORY[categorize(row.event)];
+          const cat = CATEGORY[categoryKey(row)];
           const { date: dateLabel } = formatDayHeading(date);
           const pid = pageId(row.url);
           const tag = pid ? "a" : "div";
@@ -360,7 +393,7 @@ function renderMobileDay(date, events) {
     : "";
 
   const card = (row, slot) => {
-    const cat = CATEGORY[categorize(row.event)];
+    const cat = CATEGORY[categoryKey(row)];
     const solid = row.status === "Confirmed";
     const pid = pageId(row.url);
     const tag = pid ? "a" : "div";

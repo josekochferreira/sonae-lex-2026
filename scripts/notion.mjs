@@ -20,6 +20,7 @@ function extractRow(page) {
     slot: plainText(props.Slot?.rich_text),
     city: props.City?.select?.name ?? null,
     status: props.Status?.status?.name ?? null,
+    type: (props.Type?.multi_select ?? []).map((o) => o.name),
     contacts: (props.KeyContact?.multi_select ?? []).map((o) => o.name),
     date: props.Date?.date?.start ?? null,
     url: page.url,
