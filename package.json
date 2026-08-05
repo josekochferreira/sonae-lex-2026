@@ -7,6 +7,9 @@
   "scripts": {
     "build": "node scripts/build-agenda.mjs"
   },
+  "dependencies": {
+    "@vercel/edge": "^1.2.1"
+  },
   "engines": {
     "node": ">=20"
   }
